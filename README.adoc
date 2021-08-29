@@ -1,0 +1,7 @@
+# JHU EN-525-615 Lab 6
+
+This repository contains the Lab 6 assignment material for the course.
+
+== Quick Links
+
+* link:docs/lab6.adoc[Lab 6 Assignment]

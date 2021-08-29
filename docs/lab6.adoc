@@ -1,0 +1,223 @@
+:toc:
+:toclevels: 5
+:sectnums:
+:sectnumlevels: 5
+:icons: font
+:imagesdir: images
+:source-highlighter: highlight.js
+
+= EN.525.615 - Lab 6 Assignment
+
+WARNING:  This is the first revision of this lab. There may be _some_ bugs. Ask questions as needed in the `Lab 6 Discussion` area.
+
+== Accept the GitHub Classroom Assignment link
+
+The GitHub Classroom Assignment for this Lab can be found here: https://classroom.github.com/a/IE5FXU_5
+
+== Overview
+
+Similarly to how the previous alarm clock task spanned two separate labs, this task will span the final three labs due to its complexity. You will make a simple video game console using both the primary development board as the console itself, and the Wireless Dongle as the "brains" for a wireless input device (the "controller"). You will implement any single game of your choosing, but we will make a few suggestions and provide some ideas for inspiration in the later labs. This will exercise everything you have learned thus far such displaying graphics on the LCD, generating sounds with the DAC/Amp combo, and interfacing with buttons. New concepts include things like wireless communication, analog to digital (ADC) conversion, and basic game loops.
+
+NOTE: Continue thinking about the "big picture" of your design now during this lab. You won't be implementing everything at once so try to plan out what peripherals you will be using and which pins you may need for them in the later labs. You don't want to code yourself into a corner and end up with extra work.
+
+=== Requirements
+
+Your video game console at the end of lab 7 shall be able to:
+
+** Be controllable wirelessly by the player
+** Display graphics with a minimum level of complexity
+** Play several types of audio like:
+*** Sound effects including waveform and random noise generation
+*** Simple Melodies
+
+The general sequence of the labs and their requirements are as follows:
+
+1. Lab 5 (Previous Lab)
+* A "warmup" building a simple DAC and looping it back into the ADC
+* Interface the Funduino Joystick Shield to the WB55 Development board
+** Interface all 6 buttons and both joystick axes and be able to read out the values with minimal latency
+* Implement a simple graphical demo that can:
+** Move a figure around the screen using the joystick
+** Wrap the figure around when at the edge of the screen
+** Change colors of the background and foreground
+** Change the shape of the figure using button presses
+*** At least three types: Circle, Square, Triangle
+*** Can be any size, but must be recognizable (a single pixel doesn't count)
+
+2. Lab 6 *(This Lab)*
+* Interface the Funduino Joystick Shield to the Nucleo WB55 Wireless dongle
+* Program the wireless dongle to forward all joystick inputs and button presses to the dev board
+** There must but little to no "lag" between pressing the button and the dev board reacting to the pressed button or moved axis
+** The control inputs must be logged to the UART
+* The wireless controller has to control the "demo" from lab 6
+* Implement a simple audio system to play a tune
+** Be able to play single tones with with a selectable waveform: sine, square, and triangle waves
+** Be able to play different tones (meaning different frequencies of sound)
+
+3. Lab 7 (Next Lab)
+* Integrate the previous two labs together into a single system
+* Write the game loop for your favorite game
+** Tetris, Space Invaders, Asteroids, Snake
+
+=== Additional Information
+
+This lab involves the use of many previously used components so that information will not be repeated in this lab. Please refer back to the previous labs for reference.
+
+* Lab 2 - State Machines, FreeRTOS
+* Lab 3 - Simple GPIO, RTC, Keypad Matrix, Timers
+* Lab 4 - LCD, Audio via I2S DAC, Rotary Encoder
+* Lab 5 - Funduino Joystick Shield, Simple DAC, Graphics Processing
+
+=== Extra Credit
+
+TIP: Optionally, you can add whatever *additional* features you like to this. If you implement features above and beyond this baseline we will add extra credit equivalent to the effort/creativity put in to them. You can not get over 100, but what the extra credit will do is allow you lose points in some other areas and still make it possible to get a perfect score. The maximum extra points available is *10 points*, so one full letter grade. To get this max amount the features added must be exceptional.
+
+== Hardware Setup
+
+The hardware required for this lab has mostly been assembled already for lab 5. The only brand new component is the Nucleo USB Dongle, which will now have the Joystick Shield interfaced to it.
+
+=== Parts list
+
+* All the parts from Lab 5
+* I2S DAC + Speaker Combo from Lab 4
+* Nucleo STM32WB USB Dongle
+
+=== Hardware Assembly and Setup
+
+==== Funduino Joystick Shield
+
+For foundational information on this component, please see the lab 5 document. For the purposes of lab 6 you will interface this to the Nucleo USB Dongle *instead* of the Nucleo dev board.
+
+See Figure 11 in the UM2435 document to see what IO is available to you. Since the joystick shield only requires two analog pins and six regular input pins (The Joystick pushbutton is not required for this lab), there are plenty of pins to accommodate this. When wiring up the board, remember that only certain pins are analog capable and these can overlap with the regular GPIO pins, so make sure to fully "pinout" your design in the hardware configuration tool to help prevent impossible situations.
+
+==== I2S DAC
+
+Hook up the I2S DAC from lab 4 to the main dev board. Reference the lab 4 document to see how to do this since there is no change between these labs. You will hook this DAC up to the SAI peripheral.
+
+== Lab Setup and Requirements
+
+The two main requirements of this lab is to integrate the joystick shield with the USB dongle, which will forward the button presses to the dev board, and to create a better audio subsystem capable of playing tones and melodies.
+
+IMPORTANT: From this point you should build your projects off of example projects provided by ST. Wireless transmission (and BLE in particular) can be tricky to get working so starting from a known good project is a great way to save yourself headaches. More info on this in the wireless section.
+
+=== Nucleo USB Dongle
+
+When creating your STM32 Project make sure to select the Dongle instead of the regular dev board when picking your board. You can find it in the board selector if you search for "WB55" and pick the board pictured in the following figure.
+
+image::lab6-dongle.png[width=75%,align=center]
+
+Programming the USB dongle with your program binary is slightly different from the dev board. This is because the main Nucleo dev board comes with an STLINK Programmer built right on to the board, greatly simplifying the programming and debugging process.
+
+The first way of doing this (and the only way to preserve debugging capabilities) is to use an STLINK programmer to load the program binary on to the Dongle. It does not have its own STLINK so you must use the STLINK device located on your main dev board. This requires removing the row of jumpers near the three pushbuttons (the header labeled JP3) and wiring the right hand column to the Dongle. You should also remove power to the main microcontroller as well to prevent contention (Header JP2). See the following figure for how to do this (more information on this in reference 8).
+
+image::lab6-program.png[width=75%,align=center]
+
+The second way of doing this is to use the Dongle's DFU loader. This is a boot loader stored in the Dongle's flash that can load a new program binary over USB. You must install a DFU loader tool to your computer in order to use this method.
+
+Luckily, ST provides a tool called STM32CubeProgrammer for this task and you can download it from https://www.st.com/en/development-tools/stm32cubeprog.html. It supports all mainstream operating systems.
+
+Once you have this tool you must put the Dongle in DFU mode and plug it into your computer, see following figure for info on how to turn it to DFU mode.
+
+image::lab6-dfu.png[width=40%,align=center]
+
+Once you have done this and plugged it into your computer, you can then use the STM32CubeProgrammer dfu loader to flash the dongle. One caveat is that you cannot flash it with a regular elf file (the typical file that gets generated from the STM32CUBEIDE build process) so you must take one extra step to generate a "hex" file readable by the dfu loader. In the IDE go into the properties for your Dongle project and add `arm-none-eabi-objcopy -O ihex ${ProjName}.elf ${ProjName}.hex` to your post build steps. See the next figure on how to do this.
+
+image::lab6-hex.png[width=75%,align=center]
+
+==== Wireless Communication
+
+You should have two separate projects for this lab: a project on the the dev board that runs the graphical and audio demos, and another project that runs on the dongle which is constantly sampling the joystick shield and sending these values via the Bluetooth Low Energy (BLE) protocol to the main dev board.
+
+The BLE code can be very complex so it is a very good idea to start with BLE sample code. Luckily this is provided to you through the STM32CubeIDE software. The location of the sample code changes depending on what OS you are using and where you installed the IDE. On my machine, the examples are located here: `~/STM32Cube/Repository/STM32Cube_FW_WB_V1.9.0`.
+
+You are looking in the Projects area for STM32CubeIDE projects. You can copy these into your workspace and build them like any other project. Navigate to the `Projects/P-NUCLEO-WB55.USBDongle/Applications/BLE` directory to see a list of many different projects implementing different BLE applications.
+
+Here are the ones that are useful to us:
+
+* For the Nucleo Dev Board - BLE_p2pServer
+* For the Dongle - BLE_p2pClient
+
+We want to use these since they implement a simple peer to peer connection. We can use this connection to forward key presses from the Dongle to the Nucleo board.
+
+Ultimately these are just suggestions, you can implement this however you want but we highly recommend starting with one of these projects to make your life easier.
+
+=== Funduino Joystick Shield Interfacing
+
+*This is the same as Lab5*, just interfaced to the USB Dongle instead of the Nucleo. You will use the built-in ADC with two inputs to sample the joysticks and regular GPIO to capture the button presses. On the Nucleo dev board, in addition to the normal usage of the button presses and joystick values, you must also log these periodically to the UART. The rate is up to you but it should be reasonably often without degrading performance.
+
+=== Driving the LCD
+
+*This is the same as Lab5*, but it must be controlled with joystick shield communicating through the Nucleo USB Dongle's wireless communication capabilities to the regular dev board.
+
+As a reminder, the joystick movement and key presses from the wireless controller must be able to manipulate the graphics demo just like in lab 5.
+
+=== Audio
+
+In order to build the final project, you must be able to produce simple tones and melodies. In this lab you will create a system for playing these tones and stringing them together.
+
+NOTE: The SAI peripheral should be configured to use the I2S/PCM Protocol and be driven using DMA in circular buffer mode. Using the SAI in a polling configuration will be incur too much CPU overhead.
+
+==== Pure Tones and Melodies
+
+You will create several sets of samples each of which will represent a single "note". See reference 9 for more information on what notes actually look like. Basically you will have several pre-programmed frequencies that can be played through the I2S DAC. Since this device works on the principal of outputting a fixed number of samples per second, you must craft the samples to produce the proper frequencies. You will then play sequences of these notes to produce simple tunes.
+
+You must implement the following waveforms:
+
+* Square
+* Triangle
+* Sawtooth
+* Sine
+* Random Noise (frequency doesn't matter here, but perhaps try out the random number generator peripheral in the stm32)
+
+The first four have distinct "sounds" and will be useful for making tunes. While noise is good for some types of sound effects (and heavily used in old video games). The following figure shows their shapes.
+
+image::lab6-wave.png[width=75%,align=center]
+
+To meet the requirements for this lab, the audio sub-system must be able to do two things:
+
+1. Simple sound playback
+* Press and hold a button on the shield to play a single tone
+* Cycle through the *type* of tone with another button
+* Tone can be a fixed frequency for this part
+2. Complex sound playback
+* At the press of a button play a preloaded (or dynamic!) tune
+* Change the waveform using the same button from the previous task to play the melody with different waveform styles
+
+The complex playback can be of any tune you chose, but should be implemented as a sequence of notes that are easily update-able in your code. This can be an array with values corresponding to musical notes that reference sequences of samples for the particular notes.
+
+A good site for getting music in musical alphabet notation is https://noobnotes.net/[noobnotes]. Each letter corresponds to a frequency, and some letters are either in a higher octave or lower octave which are respectively a doubling or halving of frequency. A well optimized function for generating these samples will be useful if you don't want to store a large amount of individual notes in flash.
+
+Some ideas:
+
+* Mario Theme - https://noobnotes.net/super-mario-bros-theme-nintendo/
+* Happy Birthday - https://noobnotes.net/happy-birthday-traditional/
+
+=== FreeRTOS usage
+
+FreeRTOS usage is *encouraged* but optional. This is a pretty good application for it (keeping time is definitely a real-time class of problem) but it will be harder to implement so try not to get trapped with a design at the last second that doesn't work and needs to be rewritten from scratch.
+
+NOTE: FreeRTOS will be tricky to integrate with the BLE example projects
+
+<<<
+
+== References
+
+NOTE: New references appended to bottom of this list.
+
+1. User manual for the Nucleo-WB55 containing useful information on how to interface to the board itself: https://www.st.com/resource/en/user_manual/dm00517423-bluetooth-low-energy-and-802154-nucleo-pack-based-on-stm32wb-series-microcontrollers-stmicroelectronics.pdf[UM2435]
+
+2. Reference manual for the WB55 containing in depth information about how to program the chip including it's peripherals https://www.st.com/content/ccc/resource/technical/document/reference_manual/group0/83/cf/94/7a/35/a9/43/58/DM00318631/files/DM00318631.pdf/jcr:content/translations/en.DM00318631.pdf[RM0434]
+
+3. How to turn your simple PWM into a DAC https://www.allaboutcircuits.com/technical-articles/turn-your-pwm-into-a-dac/[here]
+
+4. ADC Theory https://wiki.analog.com/university/courses/electronics/text/chapter-20[here]
+
+5. How to draw primitive shapes http://www.brackeen.com/vga/shapes.html[here]
+
+6. Bresenham's circle algorithm https://iq.opengenus.org/bresenhams-circle-drawing-algorithm/[here]
+
+7. Wikipedia has a very thorough article on ADC's as well https://en.wikipedia.org/wiki/Analog-to-digital_converter[here]
+
+8. Great introduction on the USB Dongle and programming modes https://www.youtube.com/watch?v=ZFWuH05nlQ4[here]
+
+9. Information on musical notes and their frequencies https://www.intmath.com/trigonometric-graphs/music.php[here]
